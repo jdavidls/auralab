@@ -68,7 +68,7 @@ for epoch in range(n_epochs):
 
     # Compute loss
     # Return Model: Minimize negative annualized performance
-    loss_ret = stats_ret.cross_loss_perf
+    loss_ret = stats_ret.max_perf_loss
 
     # Sharpe Model: Minimize negative portfolio Sharpe
     loss_shp = stats_shp.cross_loss_sharpe

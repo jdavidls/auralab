@@ -140,7 +140,7 @@ class PortfolioStats:
             raise ValueError("Cannot sum over t_dim in reduced stats")
 
     @cached_property
-    def cross_loss_perf(self) -> Tensor:
+    def max_perf_loss(self) -> Tensor:
         """
         Loss function for minimization.
         We want to maximize return, so minimize negative annualized performance.
@@ -185,6 +185,64 @@ class PortfolioStats:
         Minimizes negative Portfolio Sharpe ratio.
         """
         return -self.cross_sharpe.sum()
+
+    def hybrid_loss(
+        self,
+        return_target: float | None = None,
+        sharpe_target: float | None = None,
+        penalty_weight: float = 100.0,
+    ) -> Tensor:
+        """
+        Dynamic Hybrid loss function.
+
+        Objective: Maximize Return + Dynamic Sharpe Bonus.
+        Constraints: Penalize if Sharpe < Target.
+
+        Logic:
+            1. Excess Return = ReLU(Return - Return_Target) (if return_target is not None)
+            2. Sharpe Deficit = ReLU(Sharpe_Target - Sharpe) (if sharpe_target is not None)
+            3. Objective = Return + Excess_Return * Sharpe
+            4. Penalty = Penalty_Weight * Sharpe_Deficit^2
+
+        Loss = -Objective + Penalty
+
+        Args:
+            return_target: Threshold for return to activate Sharpe bonus. If None, bonus is disabled.
+            sharpe_target: Minimum target for Sharpe ratio. If None, penalty is disabled.
+            penalty_weight: Weight for Sharpe penalty.
+        """
+        # Calculate Portfolio Annualized Return
+        # cross_net_perf is (T, 1) or (Batch, T, 1)
+        r = self.cross_net_perf.narrow(
+            self.t_dim, 0, self.cross_net_perf.size(self.t_dim) - 1
+        )
+        port_annualized_ret = r.mean(dim=self.t_dim) * self.steps_per_year
+        # shape: (Batch, 1) or (1,) if squeezed. cross_sharpe is (Batch,) or scalar.
+
+        # Ensure shapes match for addition/comparison
+        if port_annualized_ret.ndim > self.cross_sharpe.ndim:
+            port_annualized_ret = port_annualized_ret.squeeze(-1)
+
+        # 1. Dynamic Objective
+        objective = port_annualized_ret
+
+        if return_target is not None:
+            # Excess Return: How much are we above the return target?
+            excess_return = torch.relu(port_annualized_ret - return_target)
+            # Add Sharpe bonus scaled by excess return.
+            objective = objective + excess_return * self.cross_sharpe
+
+        # 2. Penalties
+        penalty = torch.tensor(0.0, device=self.log_price.device)
+
+        if sharpe_target is not None:
+            # Sharpe Deficit: How much are we below the Sharpe target?
+            sharpe_deficit = torch.relu(sharpe_target - self.cross_sharpe)
+            # Penalty grows quadratically with deficit
+            penalty = penalty_weight * sharpe_deficit.pow(2)
+
+        # Total Loss (Minimize negative objective + penalty)
+        return (-objective + penalty).sum()
 
 
 def portfolio(

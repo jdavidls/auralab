@@ -79,7 +79,7 @@ class TestPortfolioStats(unittest.TestCase):
         weights = torch.randn(10, 2, device=self.device, requires_grad=True)
 
         stats = PortfolioStats(log_prices, weights, cost_bps=0.0)
-        loss = stats.cross_loss_perf
+        loss = stats.max_perf_loss
 
         loss.backward()
 
@@ -113,8 +113,8 @@ class TestPortfolioStats(unittest.TestCase):
         # iso_total_perf: (2, 1) - summed over t_dim=1
         self.assertEqual(stats.iso_total_perf.shape, (2, 1))
 
-        # cross_loss_perf: (2,) - summed over a_dim=2 (adjusted to 1)
-        self.assertEqual(stats.cross_loss_perf.shape, (2,))
+        # max_perf_loss: (2,) - summed over a_dim=2 (adjusted to 1)
+        self.assertEqual(stats.max_perf_loss.shape, (2,))
 
         # Check values
         # Batch 1: 0 return
@@ -135,7 +135,7 @@ class TestPortfolioStats(unittest.TestCase):
         # Batch 1: 0 return
         self.assertTrue(
             torch.allclose(
-                stats.cross_loss_perf[0], -torch.tensor(0.0, device=self.device)
+                stats.max_perf_loss[0], -torch.tensor(0.0, device=self.device)
             )
         )
 
@@ -144,7 +144,7 @@ class TestPortfolioStats(unittest.TestCase):
         # mean_return = total_return / 2 (excluding last step)
         # annualized = mean_return * steps_per_year
         expected_annualized = (expected_return / 2) * steps_per_year
-        self.assertTrue(torch.allclose(stats.cross_loss_perf[1], -expected_annualized))
+        self.assertTrue(torch.allclose(stats.max_perf_loss[1], -expected_annualized))
 
     def test_annualization(self):
         from datetime import timedelta
