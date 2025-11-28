@@ -1,0 +1,38 @@
+[project]
+name = "auralab"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "J.David Luque",email = "jdavidls@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13,<3.15"
+dependencies = [
+    "numpy (>=2.3.5,<3.0.0)",
+    "matplotlib (>=3.10.7,<4.0.0)",
+    "librosa (>=0.11.0,<0.12.0)",
+    "nnAudio (>=0.3.2,<0.4.0)",
+    "torch (>=2.9.1,<3.0.0)",
+]
+
+[[tool.poetry.source]]
+name = "torch"
+url = "https://download.pytorch.org/whl/cu130"
+priority = "supplemental"
+
+
+
+[tool.poetry.dependencies]
+torch = {source = "torch"}
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "ipykernel (>=7.1.0,<8.0.0)",
+    "ipywidgets (>=8.1.8,<9.0.0)",
+    "ipympl (>=0.9.8,<0.10.0)",
+    "plotly (>=6.5.0,<7.0.0)",
+    "nbformat (>=5.10.4,<6.0.0)"
+]
