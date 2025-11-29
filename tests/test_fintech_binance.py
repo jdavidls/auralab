@@ -12,7 +12,7 @@ sys.path.append(str(Path(__file__).parent.parent / "src"))
 
 
 from auralab.fintech.sources.binance import BinanceFetcher
-from auralab.fintech.sources.core import TradeData
+from auralab.fintech.sources.core import TradeData, TradingPair, Market
 from auralab.fintech.dataset import TradingDataset
 
 
@@ -47,7 +47,9 @@ class TestBinanceFetcher(unittest.TestCase):
 
         # Execute
         day = date(2023, 1, 1)
-        data = self.fetcher.fetch_day("BTCUSDT", day, "usdtm")
+        pair = TradingPair("BTC", "USDT")
+        market = Market(Market.Platform.BINANCE, "usdtm")
+        data = self.fetcher.fetch_day(pair, day, market)
 
         # Verify download called
         mock_retrieve.assert_called_once()
@@ -79,7 +81,9 @@ class TestBinanceFetcher(unittest.TestCase):
         )
         mock_parse.return_value = mock_data
 
-        data = self.fetcher.fetch_day("BTCUSDT", date(2023, 1, 1), "usdtm")
+        pair = TradingPair("BTC", "USDT")
+        market = Market(Market.Platform.BINANCE, "usdtm")
+        data = self.fetcher.fetch_day(pair, date(2023, 1, 1), market)
 
         self.assertEqual(data, mock_data)
 
@@ -93,11 +97,13 @@ class TestBinanceFetcher(unittest.TestCase):
 class TestBinanceDataset(unittest.TestCase):
     def test_dataset_ensure(self):
         fetcher = MagicMock(spec=BinanceFetcher)
-        dataset = TradingDataset("BTCUSDT", "usdtm", fetcher)
+        pair = TradingPair("BTC", "USDT")
+        market = Market(Market.Platform.BINANCE, "usdtm")
+        dataset = TradingDataset(pair, market, fetcher)
 
         day = date(2023, 1, 1)
         _ = dataset.ensure(day)
-        fetcher.fetch_day.assert_called_with("BTCUSDT", day, "usdtm")
+        fetcher.fetch_day.assert_called_with(pair, day, market)
 
 
 if __name__ == "__main__":

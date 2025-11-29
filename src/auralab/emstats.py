@@ -17,12 +17,12 @@ class EMStats:
     class State:
         avg: Tensor
         var: Tensor
-        exx_triu: tuple[tuple[tuple[int, bool], Tensor], ...]  # by (dim_c, diagonal)
+        cov_triu: tuple[tuple[int, Tensor], ...]  # by dim_c
 
     initial_state: Optional[State] = None
 
     @cached_property
-    def _exx_triu_states(self) -> dict[tuple[int, bool], Tensor]:
+    def _cov_triu_states(self) -> dict[int, Tensor]:
         """Mutable container for exx_triu states."""
         return {}
 
@@ -34,13 +34,13 @@ class EMStats:
         # var
         var_last = self.var.select(self.dim, -1)
         # exx_triu
-        exx_triu_last = tuple(
+        cov_triu_last = tuple(
             sorted(
-                ((k, v.select(self.dim, -1)) for k, v in self._exx_triu_states.items()),
+                ((k, v.select(self.dim, -1)) for k, v in self._cov_triu_states.items()),
                 key=lambda x: x[0],
             )
         )
-        return self.State(avg=avg_last, var=var_last, exx_triu=exx_triu_last)
+        return self.State(avg=avg_last, var=var_last, cov_triu=cov_triu_last)
 
     @cached_property
     def avg(self) -> Tensor:
@@ -61,23 +61,33 @@ class EMStats:
         """Moving variance.
         Var(X) = E[X^2] - (E[X])^2
         """
-        # E[X^2]
+        # Var(X) = E[(X - E[X])^2]
+        # This is more numerically stable than E[X^2] - (E[X])^2
         state = None
         if self.initial_state:
-            # Reconstruct E[X^2] state from Var and E[X]
-            # E[X^2] = Var + (E[X])^2
-            state = self.initial_state.var + self.initial_state.avg**2
+            # State for centered variance is just the variance itself
+            state = self.initial_state.var
+
+        # Use the already computed avg
+        # We need to expand avg to match val shape if needed, but _val_expanded handles val.
+        # avg has shape (*val.shape, *alpha.shape)
+        # val has shape (*val.shape)
+        # _val_expanded has shape (*val.shape, *alpha.shape)
+
+        diff_sq = (self._val_expanded - self.avg) ** 2
+
+        # Use distributed=True if alpha is not scalar
+        distributed = self.alpha.ndim > 0
 
         x2_avg = ema(
-            self.val**2,
+            diff_sq,
             self.alpha,
             state=state,
             dim=self.dim,
             lookahead=self.lookahead,
+            distributed=distributed,
         )
-        # (E[X])^2
-        avg_x2 = self.avg**2
-        return x2_avg - avg_x2
+        return x2_avg
 
     @cached_property
     def rstd(self) -> Tensor:
@@ -97,20 +107,17 @@ class EMStats:
         return (self._val_expanded - self.avg) * self.rstd
 
     @cache
-    def cov(self, dim_c: int, diagonal: bool = False) -> Tensor:
+    def cov(self, dim_c: int) -> Tensor:
         """
         Moving covariance matrix between components along dim_c.
-        Returns the upper triangular part flattened.
+        Returns the strictly upper triangular part flattened.
 
         Args:
             dim_c: The dimension representing the components (features).
-            diagonal: If True, include diagonal elements (variances).
-                      If False (default), exclude diagonal (strictly upper triangular).
 
         Returns:
             Tensor of shape (..., N_pairs, ..., A)
-            where N_pairs = C*(C+1)/2 if diagonal=True
-                          = C*(C-1)/2 if diagonal=False
+            where N_pairs = C*(C-1)/2
         """
         # We need to compute E[X_i * X_j] - E[X_i] * E[X_j] for i <= j (or i < j)
 
@@ -120,78 +127,68 @@ class EMStats:
 
         C = x_in.shape[dim_c]
 
-        # Get indices for upper triangle
-        offset = 0 if diagonal else 1
+        # Get indices for upper triangle (strictly upper)
+        offset = 1
         row_idx, col_idx = torch.triu_indices(C, C, offset=offset, device=x_in.device)
 
-        # Gather x values
-        # x_in shape: (..., C, ...)
-        # We need to select along dim_c
+        # Cov(X, Y) = E[(X - E[X])(Y - E[Y])]
+        # This is more numerically stable.
 
-        # x_row: select row_idx along dim_c
-        x_row = x_in.index_select(dim_c, row_idx)
-        # x_col: select col_idx along dim_c
-        x_col = x_in.index_select(dim_c, col_idx)
-
-        # Compute product
-        xx_prod = x_row * x_col
-
-        # Compute EMA of the product
-        # Note: dim_c is now the dimension of flattened pairs
-        target_dim = self.dim
-        # If we didn't change rank, target_dim stays same?
-        # index_select preserves rank, just changes size of dim_c.
-        # So target_dim is still valid unless it was dim_c.
-        # But EMA scans along `dim` (time). `dim_c` is features.
-        # So `dim` should be preserved.
-
-        state = None
-        if self.initial_state:
-            # Convert tuple to dict for lookup
-            exx_triu_dict = dict(self.initial_state.exx_triu)
-            if (dim_c, diagonal) in exx_triu_dict:
-                state = exx_triu_dict[(dim_c, diagonal)]
-
-        exx_triu = ema(
-            xx_prod,
-            self.alpha,
-            state=state,
-            dim=target_dim,
-            lookahead=self.lookahead,
-        )
-
-        # Store for final_state
-        self._exx_triu_states[(dim_c, diagonal)] = exx_triu
-
-        # Compute E[X_i] * E[X_j]
+        # Get means
         mu = self.avg
         mu_row = mu.index_select(dim_c, row_idx)
         mu_col = mu.index_select(dim_c, col_idx)
 
-        mu_prod_triu = mu_row * mu_col
+        # Get values (expanded)
+        val_expanded = self._val_expanded
+        x_row = val_expanded.index_select(dim_c, row_idx)
+        x_col = val_expanded.index_select(dim_c, col_idx)
 
-        return exx_triu - mu_prod_triu
+        # Centered product
+        centered_prod = (x_row - mu_row) * (x_col - mu_col)
+
+        target_dim = self.dim
+        state = None
+        state = None
+        if self.initial_state:
+            # Convert tuple to dict for lookup
+            cov_triu_dict = dict(self.initial_state.cov_triu)
+            if dim_c in cov_triu_dict:
+                state = cov_triu_dict[dim_c]
+
+        distributed = self.alpha.ndim > 0
+
+        cov_triu = ema(
+            centered_prod,
+            self.alpha,
+            state=state,
+            dim=target_dim,
+            lookahead=self.lookahead,
+            distributed=distributed,
+        )
+
+        # Store for final_state
+        # Store for final_state
+        self._cov_triu_states[dim_c] = cov_triu
+
+        return cov_triu
 
     @cache
-    def corr(self, dim_c: int, diagonal: bool = False, eps: float = 1e-8) -> Tensor:
+    def corr(self, dim_c: int) -> Tensor:
         """
         Moving correlation matrix (normalized covariance).
-        Returns the upper triangular part flattened.
+        Returns the strictly upper triangular part flattened.
         R_ij = Cov_ij / (std_i * std_j)
 
         Args:
             dim_c: The dimension representing the components (features).
-            diagonal: If True, include diagonal elements (always 1.0).
-                      If False (default), exclude diagonal.
-            eps: Small epsilon to avoid division by zero.
 
         Returns:
             Tensor of shape (..., N_pairs, ..., A)
-            where N_pairs = C*(C+1)/2 if diagonal=True
-                          = C*(C-1)/2 if diagonal=False
+            where N_pairs = C*(C-1)/2
         """
         # 1. Compute covariance matrix (flattened triu)
-        cov_triu = self.cov(dim_c, diagonal=diagonal)
+        cov_triu = self.cov(dim_c)
 
         # 2. Get reciprocal standard deviations
         rstd = self.rstd
@@ -202,7 +199,7 @@ class EMStats:
             dim_c += x_in.ndim
 
         C = x_in.shape[dim_c]
-        offset = 0 if diagonal else 1
+        offset = 1
         row_idx, col_idx = torch.triu_indices(C, C, offset=offset, device=x_in.device)
 
         # Note: self.var has same shape as x (plus alpha dim).
@@ -213,7 +210,7 @@ class EMStats:
 
         rstd_prod_triu = rstd_row * rstd_col
 
-        return cov_triu * rstd_prod_triu
+        return (cov_triu * rstd_prod_triu).clamp(-1.0, 1.0)
 
 
 def emstats(

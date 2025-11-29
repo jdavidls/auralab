@@ -90,13 +90,13 @@ class TestEMStats(unittest.TestCase):
         stats = emstats(x, alpha, dim=0)
 
         # Compute covariance along dim 1 (features)
-        # Returns flattened upper triangle
-        # For C=2, size is 2*(3)/2 = 3
-        # Indices: (0,0), (0,1), (1,1)
-        cov_triu = stats.cov(dim_c=1, diagonal=True)
+        # Returns flattened strictly upper triangle
+        # For C=2, size is 2*(1)/2 = 1
+        # Indices: (0,1)
+        cov_triu = stats.cov(dim_c=1)
 
-        # Shape should be (T, 3, 1)
-        self.assertEqual(cov_triu.shape, (T, 3, 1))
+        # Shape should be (T, 1, 1)
+        self.assertEqual(cov_triu.shape, (T, 1, 1))
 
         # Check last values
         # Var(x1) should be approx 0.5 (avg of sin^2)
@@ -104,14 +104,15 @@ class TestEMStats(unittest.TestCase):
 
         final_cov = cov_triu[-1, :, 0]
 
-        # Indices for 2x2:
-        # 0: (0,0) -> Var(x1)
-        # 1: (0,1) -> Cov(x1, x2)
-        # 2: (1,1) -> Var(x2)
+        # Get variances from stats.var
+        final_var = stats.var[-1]
+        var_x1 = final_var[0]
+        var_x2 = final_var[1]
 
-        var_x1 = final_cov[0]
-        cov_x1x2 = final_cov[1]
-        var_x2 = final_cov[2]
+        # Indices for 2x2 strictly upper:
+        # 0: (0,1) -> Cov(x1, x2)
+
+        cov_x1x2 = final_cov[0]
 
         # Values (approximate)
         # Since it's a sine wave, variance fluctuates, but let's just check sign
@@ -140,78 +141,50 @@ class TestEMStats(unittest.TestCase):
         alpha = torch.tensor([0.01], device=self.device)
 
         stats = emstats(x, alpha, dim=0)
-        corr_triu = stats.corr(dim_c=1, diagonal=True)
+        corr_triu = stats.corr(dim_c=1)
 
-        # Shape: (T, C*(C+1)/2, 1)
-        # C=3, size = 3*4/2 = 6
-        # Indices: (0,0), (0,1), (0,2), (1,1), (1,2), (2,2)
-        self.assertEqual(corr_triu.shape, (T, 6, 1))
+        # Shape: (T, C*(C-1)/2, 1)
+        # C=3, size = 3*2/2 = 3
+        # Indices: (0,1), (0,2), (1,2)
+        self.assertEqual(corr_triu.shape, (T, 3, 1))
 
         # Check last values
         final_corr = corr_triu[-1, :, 0]
 
-        # Diagonal elements should be 1.0
-        # Indices: 0, 3, 5
+        # Corr(x1, x2) is at index 0 (0,1)
         self.assertTrue(
             torch.allclose(
-                final_corr[0], torch.tensor(1.0, device=self.device), atol=1e-4
-            )
-        )
-        self.assertTrue(
-            torch.allclose(
-                final_corr[3], torch.tensor(1.0, device=self.device), atol=1e-4
-            )
-        )
-        self.assertTrue(
-            torch.allclose(
-                final_corr[5], torch.tensor(1.0, device=self.device), atol=1e-4
+                final_corr[0], torch.tensor(-1.0, device=self.device), atol=1e-2
             )
         )
 
-        # Corr(x1, x2) is at index 1 (0,1)
+        # Corr(x1, x3) is at index 1 (0,2)
         self.assertTrue(
-            torch.allclose(
-                final_corr[1], torch.tensor(-1.0, device=self.device), atol=1e-2
-            )
+            torch.abs(final_corr[1]) < 0.2,
+            f"Expected small correlation, got {final_corr[1]}",
         )
 
-        # Corr(x1, x3) is at index 2 (0,2)
-        self.assertTrue(
-            torch.abs(final_corr[2]) < 0.2,
-            f"Expected small correlation, got {final_corr[2]}",
-        )
-
-    def test_cov_diagonal(self):
+    def test_cov_shape(self):
         T, C = 100, 3
         x = torch.randn(T, C, device=self.device)
         alpha = torch.tensor(0.1, device=self.device)
         stats = emstats(x, alpha, dim=0)
 
-        # Test with diagonal=False (default)
-        cov_no_diag = stats.cov(dim_c=1, diagonal=False)
-        expected_size_no_diag = C * (C - 1) // 2
-        self.assertEqual(cov_no_diag.shape[1], expected_size_no_diag)
+        # Test with strictly upper triangle
+        cov = stats.cov(dim_c=1)
+        expected_size = C * (C - 1) // 2
+        self.assertEqual(cov.shape[1], expected_size)
 
-        # Test with diagonal=True
-        cov_diag = stats.cov(dim_c=1, diagonal=True)
-        expected_size_diag = C * (C + 1) // 2
-        self.assertEqual(cov_diag.shape[1], expected_size_diag)
-
-    def test_corr_diagonal(self):
+    def test_corr_shape(self):
         T, C = 100, 3
         x = torch.randn(T, C, device=self.device)
         alpha = torch.tensor(0.1, device=self.device)
         stats = emstats(x, alpha, dim=0)
 
-        # Test with diagonal=False (default)
-        corr_no_diag = stats.corr(dim_c=1, diagonal=False)
-        expected_size_no_diag = C * (C - 1) // 2
-        self.assertEqual(corr_no_diag.shape[1], expected_size_no_diag)
-
-        # Test with diagonal=True
-        corr_diag = stats.corr(dim_c=1, diagonal=True)
-        expected_size_diag = C * (C + 1) // 2
-        self.assertEqual(corr_diag.shape[1], expected_size_diag)
+        # Test with strictly upper triangle
+        corr = stats.corr(dim_c=1)
+        expected_size = C * (C - 1) // 2
+        self.assertEqual(corr.shape[1], expected_size)
 
     def test_stateful_processing(self):
         # Test splitting a sequence into two chunks
@@ -224,7 +197,7 @@ class TestEMStats(unittest.TestCase):
         stats_full = emstats(x, alpha, dim=0)
         avg_full = stats_full.avg
         var_full = stats_full.var
-        cov_full = stats_full.cov(dim_c=1, diagonal=True)
+        cov_full = stats_full.cov(dim_c=1)
 
         # Split processing
         split_idx = T // 2
@@ -234,23 +207,45 @@ class TestEMStats(unittest.TestCase):
         # Chunk 1
         stats1 = emstats(x1, alpha, dim=0)
         # Force computation of cov to populate state
-        _ = stats1.cov(dim_c=1, diagonal=True)
+        _ = stats1.cov(dim_c=1)
         state1 = stats1.final_state
 
         # Chunk 2
         stats2 = emstats(x2, alpha, dim=0, initial_state=state1)
         # Force computation of cov
-        cov2 = stats2.cov(dim_c=1, diagonal=True)
+        cov2 = stats2.cov(dim_c=1)
 
         # Concatenate results
         avg_chunked = torch.cat([stats1.avg, stats2.avg], dim=0)
         var_chunked = torch.cat([stats1.var, stats2.var], dim=0)
-        cov_chunked = torch.cat([stats1.cov(dim_c=1, diagonal=True), cov2], dim=0)
+        cov_chunked = torch.cat([stats1.cov(dim_c=1), cov2], dim=0)
 
         # Compare
         self.assertTrue(torch.allclose(avg_full, avg_chunked, atol=1e-5))
         self.assertTrue(torch.allclose(var_full, var_chunked, atol=1e-5))
         self.assertTrue(torch.allclose(cov_full, cov_chunked, atol=1e-5))
+
+    def test_stability(self):
+        # Test with constant values where variance should be 0
+        T = 100
+        C = 2
+        # Constant values
+        x = torch.ones(T, C, device=self.device)
+        alpha = torch.tensor([0.1], device=self.device)
+
+        stats = emstats(x, alpha, dim=0)
+
+        # Variance should be close to 0
+        # With naive E[x^2] - E[x]^2, it might be slightly negative or non-zero due to precision
+        var = stats.var
+        self.assertTrue(torch.all(var.abs() < 1e-6))
+
+        # Correlation should be handled gracefully (0 or clamped)
+        # If var is 0, rstd is clamped. Cov should be 0.
+        # Corr should be 0.
+        corr = stats.corr(dim_c=1)
+        # Check that it doesn't explode
+        self.assertTrue(torch.all(corr.abs() <= 1.0 + 1e-6))
 
 
 if __name__ == "__main__":

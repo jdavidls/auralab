@@ -13,28 +13,11 @@ logging.basicConfig(level=logging.INFO)
 
 
 def verify():
-    # Use real data for BTCUSDT (Binance) and XXBTZUSD (Kraken)
+    # Use real data for BTCUSDT (Binance)
     # We already fetched 2023-01-01 for both in previous steps, so it should be cached.
 
-    symbols = ("BTCUSDT", "XXBTZUSD")
-    # Map markets: BTCUSDT -> usdtm (Binance), XXBTZUSD -> spot (Kraken)
-    # But FintechDataset takes a tuple of markets for ALL symbols?
-    # No, the design in dataset.py iterates: for symbol in symbols: for market in markets.
-    # This implies a cross product.
-    # If we want specific pairs, we might need a different design or just ignore missing ones.
-    # However, our dataset implementation tries to fetch EVERYTHING.
-    # If we ask for ("BTCUSDT", "XXBTZUSD") and ("usdtm", "spot"), it will try:
-    # BTCUSDT-usdtm (Valid Binance)
-    # BTCUSDT-spot (Valid Binance Spot? Or Kraken?)
-    # XXBTZUSD-usdtm (Invalid)
-    # XXBTZUSD-spot (Valid Kraken)
-
-    # Let's simplify for verification.
-    # Just use one symbol that exists on one market to verify the pipeline.
-    # Or use BTCUSDT on usdtm.
-
-    symbols = ("BTCUSDT",)
-    markets = ("usdtm",)
+    symbols = ("BTC-USDT",)
+    markets = ("binance-usdtm",)
 
     start = date(2023, 1, 1)
     end = date(2023, 1, 2)  # 1 day

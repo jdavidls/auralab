@@ -9,7 +9,7 @@ from typing import List, Tuple
 import torch
 import numpy as np
 
-from .core import TradeData, ExchangeFetcher, MarketType
+from .core import TradeData, ExchangeFetcher, MarketType, TradingPair, Market
 
 log = logging.getLogger(__name__)
 
@@ -28,25 +28,40 @@ class KrakenFetcher(ExchangeFetcher):
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.rate_limit_delay = rate_limit_delay
 
-    def _get_pair_name(self, symbol: str) -> str:
-        # Kraken uses specific pair names, e.g., XBTUSD for BTC/USD
-        # For simplicity, we might expect the user to pass the Kraken pair name
-        # or map common ones. Let's assume the user passes the Kraken pair name.
-        return symbol
+    def format_symbol(self, pair: TradingPair) -> str:
+        # Kraken format: e.g. XXBTZUSD for BTC/USD
+        # This is tricky without a full mapping.
+        # However, Kraken also accepts "pair" like "BTCUSD" and returns the canonical name.
+        # Let's try to construct a reasonable guess or use a mapping if needed.
+        # For now, let's assume standard pairs like XBTUSD (Kraken uses XBT for BTC).
 
-    def fetch_day(
-        self, symbol: str, day: date, market: MarketType = "spot"
-    ) -> TradeData:
+        base = pair.base.upper()
+        quote = pair.quote.upper()
+
+        if base == "BTC":
+            base = "XBT"
+        if quote == "BTC":
+            quote = "XBT"
+
+        # Kraken often uses 'X' for crypto and 'Z' for fiat in canonical names (e.g. XXBTZUSD)
+        # But for the API 'pair' parameter, simple 'XBTUSD' often works.
+        # Let's use simple concatenation with XBT substitution.
+        return f"{base}{quote}"
+
+    def fetch_day(self, pair: TradingPair, day: date, market: Market) -> TradeData:
         """
         Fetches trade data for a specific day.
         Note: Kraken API is pagination-based. Fetching a whole day might take multiple requests.
         """
-        if market != "spot":
+        if market.platform != Market.Platform.KRAKEN:
+            raise ValueError(f"KrakenFetcher cannot fetch from {market.platform}")
+
+        if market.type != "spot":
             raise NotImplementedError(
                 "Only spot market is currently supported for Kraken"
             )
 
-        pair = self._get_pair_name(symbol)
+        symbol = self.format_symbol(pair)
         cache_file = self.cache_dir / f"{pair}-{day.isoformat()}.pt"
 
         if cache_file.exists():

@@ -9,7 +9,7 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
 from auralab.fintech.dataset import FintechDataset, SamplingDataset, TradingDataset
-from auralab.fintech.sources.core import TradeData, SampledData
+from auralab.fintech.sources.core import TradeData, SampledData, TradingPair, Market
 
 
 class TestHierarchicalDataset(unittest.TestCase):
@@ -30,8 +30,10 @@ class TestHierarchicalDataset(unittest.TestCase):
         # Create dataset
         start = date(2023, 1, 1)
         end = date(2023, 1, 2)
+        pair = TradingPair("BTC", "USDT")
+        market = Market(Market.Platform.BINANCE, "usdtm")
         ds = SamplingDataset(
-            "BTCUSDT", "usdtm", start, end, 60000, cache_dir="/tmp/test_hier"
+            pair, market, start, end, 60000, cache_dir="/tmp/test_hier"
         )
 
         # Ensure (triggers sampling)
@@ -59,8 +61,8 @@ class TestHierarchicalDataset(unittest.TestCase):
         )
         mock_ensure.return_value = mock_sampled
 
-        symbols = ("BTC", "ETH")
-        markets = ("spot", "usdtm")
+        symbols = ("BTC-USDT", "ETH-USDT")  # Strings should be parsed
+        markets = ("binance-spot", "binance-usdtm")  # Strings should be parsed
         start = date(2023, 1, 1)
         end = date(2023, 1, 2)
         sample_rate = timedelta(minutes=1)

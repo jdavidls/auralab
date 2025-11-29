@@ -1,11 +1,35 @@
+import os
 import torch
 import logging
 from datetime import date, timedelta, datetime, timezone
-from typing import Literal, List, Tuple, Dict, Optional
+from typing import Literal, List, Tuple, Dict, Optional, Iterable
 from pathlib import Path
 import numpy as np
 
-from .sources.core import ExchangeFetcher, MarketType, TradeData, SampledData
+
+def _parse_list(env_var: str, default: str) -> Tuple[str, ...]:
+    val = os.environ.get(env_var, default)
+    return tuple(s.strip() for s in val.split(",") if s.strip())
+
+
+def _parse_date(env_var: str, default: str) -> date:
+    val = os.environ.get(env_var, default)
+    return date.fromisoformat(val)
+
+
+def _parse_timedelta(env_var: str, default_minutes: int) -> timedelta:
+    val = os.environ.get(env_var, str(default_minutes))
+    return timedelta(minutes=int(val))
+
+
+from .sources.core import (
+    ExchangeFetcher,
+    MarketType,
+    TradeData,
+    SampledData,
+    TradingPair,
+    Market,
+)
 from .sources.binance import BinanceFetcher
 from .sources.kraken import KrakenFetcher
 from .sampling import sample_trades
@@ -19,8 +43,8 @@ class TradingDataset:
     Ensures data is present locally (via fetcher).
     """
 
-    def __init__(self, symbol: str, market: MarketType, fetcher: ExchangeFetcher):
-        self.symbol = symbol
+    def __init__(self, pair: TradingPair, market: Market, fetcher: ExchangeFetcher):
+        self.pair = pair
         self.market = market
         self.fetcher = fetcher
 
@@ -28,7 +52,7 @@ class TradingDataset:
         """
         Ensures trade data for the given day is available and returns it.
         """
-        return self.fetcher.fetch_day(self.symbol, day, self.market)
+        return self.fetcher.fetch_day(self.pair, day, self.market)
 
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -42,54 +66,33 @@ class SamplingDataset:
 
     def __init__(
         self,
-        symbol: str,
-        market: MarketType,
+        pair: TradingPair,
+        market: Market,
         start_date: date,
         end_date: date,
         sample_rate_ms: int,
         cache_dir: str | Path = ".cache/sampling",
         max_workers: int = 4,
     ):
-        self.symbol = symbol
+        self.pair = pair
         self.market = market
         self.start_date = start_date
         self.end_date = end_date
         self.sample_rate_ms = sample_rate_ms
-        self.cache_dir = Path(cache_dir) / market / symbol
+        # Cache directory uses string representation of pair and market
+        self.cache_dir = Path(cache_dir) / str(market) / str(pair)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.max_workers = max_workers
 
-        # Determine fetcher based on market/symbol logic or pass it in?
-        # For now, let's instantiate based on market type or some registry.
-        # Ideally this should be dependency injected, but for simplicity:
-        if (
-            "binance" in market
-        ):  # e.g. binance-spot (if we had that) or just usdtm implies binance
-            # The user prompt implies market is just 'usdtm', 'spot'.
-            # But we need to know WHICH exchange.
-            # Let's assume market strings like 'binance-usdtm' or we infer from symbol?
-            # Or we pass a fetcher factory.
-            # Let's use a simple mapping for now.
-            if market in ["usdtm", "coinm"]:
-                self.fetcher = BinanceFetcher()
-            elif market == "spot":
-                # Could be Binance or Kraken.
-                # Let's assume Kraken for spot if symbol looks like Kraken pair?
-                # Or better, let's default to Binance for spot unless specified.
-                # Actually, the prompt says "tuple of symbols, tuple of markets".
-                # Maybe we should pass the fetcher or exchange name.
-                # Let's assume for this task: 'usdtm' -> Binance, 'spot' -> Kraken (as per our tests).
-                # This is fragile. Let's try to be smarter.
-                # Ideally, we should have an Exchange registry.
-                if len(symbol) > 8 or "USD" in symbol:  # Heuristic
-                    self.fetcher = KrakenFetcher()
-                else:
-                    self.fetcher = BinanceFetcher()
-        else:
-            # Default fallback
+        # Determine fetcher based on platform
+        if market.platform == Market.Platform.BINANCE:
             self.fetcher = BinanceFetcher()
+        elif market.platform == Market.Platform.KRAKEN:
+            self.fetcher = KrakenFetcher()
+        else:
+            raise ValueError(f"Unsupported platform: {market.platform}")
 
-        self.trading_dataset = TradingDataset(symbol, market, self.fetcher)
+        self.trading_dataset = TradingDataset(pair, market, self.fetcher)
 
     def _get_cache_path(self) -> Path:
         return (
@@ -105,7 +108,7 @@ class SamplingDataset:
             torch.serialization.add_safe_globals([SampledData])
             return torch.load(cache_path, weights_only=True)
 
-        log.info(f"Generating sampled data for {self.symbol} {self.market}")
+        log.info(f"Generating sampled data for {self.pair} {self.market}")
 
         # Load all days in parallel
         days = []
@@ -170,36 +173,75 @@ class FintechDataset(torch.utils.data.Dataset):
     Level 2: Top-level dataset providing aligned tensors [T, S, M, F] for training.
     """
 
+    DEFAULT_SYMBOLS = _parse_list("FINTECH_SYMBOLS", "BTC-USDT,ETH-USDT,ETH-BTC")
+    DEFAULT_MARKETS = _parse_list("FINTECH_MARKETS", "binance-usdtm")
+    DEFAULT_START_DATE = _parse_date("FINTECH_START_DATE", "2023-01-01")
+    DEFAULT_END_DATE = _parse_date("FINTECH_END_DATE", "2023-02-01")
+    DEFAULT_SAMPLE_RATE = _parse_timedelta("FINTECH_SAMPLE_RATE_MIN", 1)
+    DEFAULT_BATCH_SIZE = int(os.environ.get("FINTECH_BATCH_SIZE", 64))
+
+    @classmethod
+    def default(cls):
+        return cls()
+
     def __init__(
         self,
-        symbols: Tuple[str, ...],
-        markets: Tuple[MarketType, ...],
-        start_date: date,
-        end_date: date,
-        sample_rate: timedelta,
-        batch_size: int,
+        symbols: str | Iterable[str | TradingPair] = DEFAULT_SYMBOLS,
+        markets: str | Iterable[str | Market] = DEFAULT_MARKETS,
+        start_date: date = DEFAULT_START_DATE,
+        end_date: date = DEFAULT_END_DATE,
+        sample_rate: timedelta = DEFAULT_SAMPLE_RATE,
+        batch_size: int = DEFAULT_BATCH_SIZE,
         max_workers: int = 4,
     ):
 
-        self.symbols = symbols
-        self.markets = markets
         self.batch_size = batch_size
         self.sample_rate_ms = int(sample_rate.total_seconds() * 1000)
 
-        # Load all data
-        # Structure: [Symbol][Market] -> SampledData
-        self.data: Dict[str, Dict[str, SampledData]] = {}
+        # Parse markets
+        if isinstance(markets, str):
+            self.markets = Market.many(markets)
+        else:
+            # Filter out already parsed objects to avoid passing them to parse_many which expects strings
+            # This restores support for passing Market objects directly
+            strs = [m for m in markets if isinstance(m, str)]
+            objs = [m for m in markets if isinstance(m, Market)]
+            self.markets = objs + Market.many(*strs)
 
-        # We need to ensure all datasets have the same length (T)
-        # Since we use same start/end/rate, they should.
+        # Parse symbols
+        if isinstance(symbols, str):
+            self.pairs = TradingPair.many(symbols)
+        else:
+            strs = [s for s in symbols if isinstance(s, str)]
+            objs = [s for s in symbols if isinstance(s, TradingPair)]
+            self.pairs = objs + TradingPair.many(*strs)
+
+        # Extract unique assets and create mapping
+        self.assets = sorted(
+            list(set([p.base for p in self.pairs] + [p.quote for p in self.pairs]))
+        )
+        self.asset_to_idx = {a: i for i, a in enumerate(self.assets)}
+
+        # Store indices for each pair [S, 2] (Base, Quote)
+        self.pair_indices = torch.tensor(
+            [
+                [self.asset_to_idx[p.base], self.asset_to_idx[p.quote]]
+                for p in self.pairs
+            ],
+            dtype=torch.long,
+        )
+
+        # Load all data
+        # Structure: [PairIndex][MarketIndex] -> SampledData
+        self.data: Dict[int, Dict[int, SampledData]] = {}
 
         self.num_steps = 0
 
-        for symbol in symbols:
-            self.data[symbol] = {}
-            for market in markets:
+        for i, pair in enumerate(self.pairs):
+            self.data[i] = {}
+            for j, market in enumerate(self.markets):
                 ds = SamplingDataset(
-                    symbol,
+                    pair,
                     market,
                     start_date,
                     end_date,
@@ -208,13 +250,13 @@ class FintechDataset(torch.utils.data.Dataset):
                 )
                 sampled = ds.ensure()
 
-                self.data[symbol][market] = sampled
+                self.data[i][j] = sampled
 
                 if self.num_steps == 0:
                     self.num_steps = len(sampled.high)
                 elif len(sampled.high) != self.num_steps:
                     raise ValueError(
-                        f"Mismatch in steps for {symbol} {market}: {len(sampled.high)} vs {self.num_steps}"
+                        f"Mismatch in steps for {pair} {market}: {len(sampled.high)} vs {self.num_steps}"
                     )
 
         # Stack data into tensors [T, S, M]
@@ -225,16 +267,16 @@ class FintechDataset(torch.utils.data.Dataset):
 
         for feat in features:
             # List of (S, M) tensors
-            # Outer list: Symbols, Inner list: Markets
+            # Outer list: Pairs (S), Inner list: Markets (M)
             feat_data = []
-            for symbol in symbols:
+            for i in range(len(self.pairs)):
                 m_data = []
-                for market in markets:
-                    m_data.append(getattr(self.data[symbol][market], feat))
+                for j in range(len(self.markets)):
+                    m_data.append(getattr(self.data[i][j], feat))
                 # Stack markets: [T, M]
                 feat_data.append(torch.stack(m_data, dim=1))
 
-            # Stack symbols: [T, S, M]
+            # Stack pairs: [T, S, M]
             tensors[feat] = torch.stack(feat_data, dim=1)
 
         self.dataset = SampledData(**tensors)

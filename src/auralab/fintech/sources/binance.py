@@ -1,5 +1,6 @@
 import os
 import urllib.request
+import urllib.error
 import zipfile
 import csv
 import io
@@ -10,7 +11,7 @@ import logging
 import torch
 import numpy as np
 
-from .core import TradeData, ExchangeFetcher, MarketType
+from .core import TradeData, ExchangeFetcher, MarketType, TradingPair, Market
 
 log = logging.getLogger(__name__)
 
@@ -29,8 +30,8 @@ class BinanceFetcher(ExchangeFetcher):
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def _get_base_url(self, market: MarketType) -> str:
-        match market:
+    def _get_base_url(self, market_type: str) -> str:
+        match market_type:
             case "spot":
                 return BINANCE_SPOT_URL
             case "usdtm":
@@ -38,20 +39,26 @@ class BinanceFetcher(ExchangeFetcher):
             case "coinm":
                 return BINANCE_COINM_URL
             case _:
-                raise ValueError(f"Unknown market: {market}")
+                raise ValueError(f"Unknown market type: {market_type}")
 
-    def fetch_day(
-        self, symbol: str, day: date, market: MarketType = "usdtm"
-    ) -> TradeData:
+    def format_symbol(self, pair: TradingPair) -> str:
+        # Binance format: BASEQUOTE (e.g. BTCUSDT)
+        return f"{pair.base}{pair.quote}".upper()
+
+    def fetch_day(self, pair: TradingPair, day: date, market: Market) -> TradeData:
         """
         Downloads (if needed) and parses trade data for a specific day.
         """
-        base_url = self._get_base_url(market)
+        if market.platform != Market.Platform.BINANCE:
+            raise ValueError(f"BinanceFetcher cannot fetch from {market.platform}")
+
+        symbol = self.format_symbol(pair)
+        base_url = self._get_base_url(market.type)
         date_str = day.isoformat()
         filename = f"{symbol}-aggTrades-{date_str}.zip"
         url = f"{base_url}/{symbol}/{filename}"
 
-        local_path = self.cache_dir / market / symbol / filename
+        local_path = self.cache_dir / market.type / symbol / filename
 
         if not local_path.exists():
             log.info(f"Downloading {url} to {local_path}")
@@ -65,9 +72,9 @@ class BinanceFetcher(ExchangeFetcher):
                     ) from e
                 raise
 
-        return self._parse_zip(local_path, market)
+        return self._parse_zip(local_path, market.type)
 
-    def _parse_zip(self, zip_path: Path, market: MarketType) -> TradeData:
+    def _parse_zip(self, zip_path: Path, market: str) -> TradeData:
         """
         Parses the zipped CSV directly into Torch tensors.
         """

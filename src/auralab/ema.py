@@ -32,13 +32,21 @@ def ema_kernel(
     n_alphas,
     HAS_STATE: tl.constexpr,
     BLOCK_SIZE: tl.constexpr,
+    DISTRIBUTED: tl.constexpr,
 ):
     pid = tl.program_id(axis=0)
 
     # pid corresponds to a unique (batch_idx, alpha_idx) pair
     # Grid is (B * A,)
-    alpha_idx = pid % n_alphas
-    batch_idx = pid // n_alphas
+    if DISTRIBUTED:
+        # In distributed mode, we assume 1-to-1 mapping between sequence and alpha
+        # pid identifies the unique sequence-alpha pair
+        # alpha repeats every n_alphas
+        alpha_idx = pid % n_alphas
+        batch_idx = pid
+    else:
+        alpha_idx = pid % n_alphas
+        batch_idx = pid // n_alphas
 
     # Pointers
     x_base = x_ptr + batch_idx * stride_x_batch
@@ -83,6 +91,7 @@ def ema_ref(
     alpha: torch.Tensor,
     state: Optional[torch.Tensor] = None,
     dim: int = 0,
+    distributed: bool = False,
 ) -> torch.Tensor:
     """Reference implementation using PyTorch loops."""
     # Move dim to 0 for easier iteration
@@ -108,7 +117,39 @@ def ema_ref(
     A = alpha_flat.numel()
 
     # Output (T, B, A)
-    y = torch.zeros(T, B, A, device=x.device, dtype=x.dtype)
+    if distributed:
+        # If distributed, we don't add A dimension.
+        # x is (T, B) where B includes A.
+        # We assume alpha broadcasts to B.
+        # But wait, our B here is flattened other dims.
+        # If distributed, alpha should match the last dims of x.
+        # Here we flattened everything to B.
+        # We need to ensure alpha broadcasts to B.
+        # If x was (T, ..., A), then B = ... * A.
+        # alpha is (A,).
+        # We need to reshape alpha to (1, ..., A) and broadcast to (1, B).
+        # Actually, let's just assume alpha is properly broadcastable to (B,)
+        # if we handle it correctly.
+
+        # But wait, in the loop:
+        # curr = (1 - a) * curr + a * xt
+        # xt is (B, 1).
+        # a needs to be (B, 1).
+
+        # If x is (T, N, A) and alpha is (A,).
+        # x_flat is (T, N*A). B = N*A.
+        # alpha needs to be repeated N times.
+        # This is hard to do generically with flattened B.
+
+        # Let's rely on the caller to ensure alpha matches if distributed?
+        # Or we can just use the fact that alpha is (A,).
+        # If distributed, we expect x.shape[-alpha.ndim:] == alpha.shape.
+
+        # Let's not flatten alpha to (A,) if distributed.
+        # Let's keep alpha as is, and reshape it to broadcast to B.
+        pass
+
+    y = torch.zeros(T, B, A if not distributed else 1, device=x.device, dtype=x.dtype)
 
     # State (B, A)
     curr = torch.zeros(B, A, device=x.device, dtype=x.dtype)
@@ -123,10 +164,24 @@ def ema_ref(
 
         # curr = (1 - alpha) * curr + alpha * xt
         # alpha is (A,) -> (1, A)
-        a = alpha_flat.unsqueeze(0)
+        if distributed:
+            # We need to construct 'a' of shape (B, 1)
+            # alpha is (A,). B is multiple of A.
+            # We can repeat alpha.
+            # B = N * A.
+            # alpha_flat is (A,).
+            # We need (N*A,).
+            n_repeats = B // A
+            a = alpha_flat.repeat(n_repeats).unsqueeze(0).transpose(0, 1)  # (B, 1)
 
-        curr = (1.0 - a) * curr + a * xt
-        y[t] = curr
+            # xt is (B, 1)
+            # curr is (B, 1)
+            curr = (1.0 - a) * curr + a * xt
+            y[t] = curr
+        else:
+            a = alpha_flat.unsqueeze(0)
+            curr = (1.0 - a) * curr + a * xt
+            y[t] = curr
 
     # Reshape y
     # y is (T, B, A)
@@ -144,7 +199,11 @@ def ema_ref(
         y = y.transpose(0, dim)
 
     # Reshape A to alpha.shape
-    y = y.reshape(*y.shape[:-1], *alpha.shape)
+    if not distributed:
+        y = y.reshape(*y.shape[:-1], *alpha.shape)
+    else:
+        # Remove the extra dimension we added (size 1)
+        y = y.squeeze(-1)
 
     return y
 
@@ -156,6 +215,7 @@ def ema(
     dim: int = 0,
     lookahead: int = 1,
     optimized: bool = True,
+    distributed: bool = False,
 ) -> torch.Tensor:
     """
     Computes EMA of x along dim using alphas.
@@ -172,9 +232,23 @@ def ema(
                    If > 1, use the mean of the first `lookahead` samples.
         optimized: If True, use Triton kernel. If False, use PyTorch reference implementation.
 
+        distributed: If True, alpha is applied element-wise to the last dimensions of x.
+                     x.shape[-alpha.ndim:] must match alpha.shape.
+                     Output shape will be x.shape.
+                     If False (default), alpha is applied as a cross-product.
+                     Output shape will be [*x.shape, *alpha.shape].
+
     Returns:
-        y: Tensor of shape [*x.shape, *alpha.shape]
+        y: Tensor of shape [*x.shape, *alpha.shape] (if not distributed)
+           or x.shape (if distributed)
     """
+    if distributed and alpha.ndim > 0:
+        # Validate shapes
+        if x.shape[-alpha.ndim :] != alpha.shape:
+            raise ValueError(
+                f"For distributed=True, x.shape[-alpha.ndim:] ({x.shape[-alpha.ndim:]}) "
+                f"must match alpha.shape ({alpha.shape})"
+            )
     if state is None:
         if lookahead == 1:
             # Initialize state with the first value of the sequence
@@ -196,7 +270,7 @@ def ema(
             state = x0
 
     if not optimized:
-        return ema_ref(x, alpha, state, dim)
+        return ema_ref(x, alpha, state, dim, distributed)
 
     assert x.is_cuda and alpha.is_cuda
 
@@ -229,9 +303,9 @@ def ema(
     if state is not None:
         # Expected state shape: (*x_batch_dims, *alpha_dims)
         # We flattened x_batch_dims to B, alpha_dims to A.
-        state = state.contiguous().view(B, A)
+        state = state.contiguous().view(B, A if not distributed else 1)
 
-    grid = (B * A,)
+    grid = (B * A,) if not distributed else (B,)
 
     MAX_BLOCK_SIZE = 65536
 
@@ -246,14 +320,17 @@ def ema(
             x_flat.stride(1),
             y.stride(0),
             y.stride(1),
-            y.stride(2),
+            0 if distributed else y.stride(2),  # stride_y_alpha
             alpha_flat.stride(0),
             state.stride(0) if state is not None else 0,
-            state.stride(1) if state is not None else 0,
+            (
+                0 if distributed else (state.stride(1) if state is not None else 0)
+            ),  # stride_state_alpha
             T,
             A,
             HAS_STATE=state is not None,  # type: ignore
             BLOCK_SIZE=BLOCK_SIZE,
+            DISTRIBUTED=distributed,  # type: ignore
         )
     else:
         # Chunking
@@ -275,14 +352,19 @@ def ema(
                 x_flat.stride(1),
                 y.stride(0),
                 y.stride(1),
-                y.stride(2),
+                0 if distributed else y.stride(2),
                 alpha_flat.stride(0),
                 current_state.stride(0) if current_state is not None else 0,
-                current_state.stride(1) if current_state is not None else 0,
+                (
+                    0
+                    if distributed
+                    else (current_state.stride(1) if current_state is not None else 0)
+                ),
                 chunk_size,
                 A,
                 HAS_STATE=current_state is not None,  # type: ignore
                 BLOCK_SIZE=BLOCK_SIZE,
+                DISTRIBUTED=distributed,  # type: ignore
             )
 
             # Update state for next chunk
@@ -307,6 +389,23 @@ def ema(
         y = y.transpose(dim, -2)
 
     # Finally reshape A to alpha_shape
-    y = y.view(*y.shape[:-1], *alpha_shape)
+    if not distributed:
+        y = y.view(*y.shape[:-1], *alpha_shape)
+    else:
+        y = y.view(*y.shape[:-1])
 
     return y
+
+
+def ema_decay(n: float | torch.Tensor) -> float | torch.Tensor:
+    """
+    Calculates the EMA alpha for a given span n.
+    alpha = 2 / (n + 1)
+
+    Args:
+        n: The span (number of time steps).
+
+    Returns:
+        alpha: The decay factor.
+    """
+    return 2.0 / (n + 1.0)

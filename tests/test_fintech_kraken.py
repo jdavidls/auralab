@@ -11,7 +11,7 @@ import io
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
 from auralab.fintech.sources.kraken import KrakenFetcher
-from auralab.fintech.sources.core import TradeData
+from auralab.fintech.sources.core import TradeData, TradingPair, Market
 
 
 class TestKrakenFetcher(unittest.TestCase):
@@ -93,7 +93,9 @@ class TestKrakenFetcher(unittest.TestCase):
 
         # Execute
         day = date(2023, 1, 1)
-        data = self.fetcher.fetch_day("XXBTZUSD", day, "spot")
+        pair = TradingPair("BTC", "USD")
+        market = Market(Market.Platform.KRAKEN, "spot")
+        data = self.fetcher.fetch_day(pair, day, market)
 
         # Verify
         self.assertEqual(mock_urlopen.call_count, 2)
@@ -127,7 +129,9 @@ class TestKrakenFetcher(unittest.TestCase):
         mock_load.return_value = mock_data
 
         day = date(2023, 1, 1)
-        data = self.fetcher.fetch_day("XXBTZUSD", day, "spot")
+        pair = TradingPair("BTC", "USD")
+        market = Market(Market.Platform.KRAKEN, "spot")
+        data = self.fetcher.fetch_day(pair, day, market)
 
         self.assertEqual(data, mock_data)
         mock_load.assert_called_once()
