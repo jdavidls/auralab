@@ -7,21 +7,21 @@ from pathlib import Path
 import io
 import sys
 
-# Add src to path to import auralab
+# Add src to path to import neuralab
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
 
-from auralab.fintech.sources.binance import BinanceFetcher
-from auralab.fintech.sources.core import TradeData, TradingPair, Market
-from auralab.fintech.dataset import TradingDataset
+from neuralab.fintech.sources.binance import BinanceFetcher
+from neuralab.fintech.sources.core import TradeData, TradingPair, Market
+from neuralab.fintech.dataset import TradingDataset
 
 
 class TestBinanceFetcher(unittest.TestCase):
     def setUp(self):
         self.fetcher = BinanceFetcher(cache_dir="/tmp/test_cache")
 
-    @patch("auralab.fintech.sources.binance.urllib.request.urlretrieve")
-    @patch("auralab.fintech.sources.binance.zipfile.ZipFile")
+    @patch("neuralab.fintech.sources.binance.urllib.request.urlretrieve")
+    @patch("neuralab.fintech.sources.binance.zipfile.ZipFile")
     @patch("pathlib.Path.exists")
     @patch("torch.save")
     def test_fetch_day_download(
@@ -67,8 +67,8 @@ class TestBinanceFetcher(unittest.TestCase):
         self.assertTrue(data.is_buyer_maker[0])
         self.assertFalse(data.is_buyer_maker[1])
 
-    @patch("auralab.fintech.sources.binance.urllib.request.urlretrieve")
-    @patch("auralab.fintech.sources.binance.BinanceFetcher._parse_zip")
+    @patch("neuralab.fintech.sources.binance.urllib.request.urlretrieve")
+    @patch("neuralab.fintech.sources.binance.BinanceFetcher._parse_zip")
     @patch("pathlib.Path.exists")
     def test_fetch_day_cached(self, mock_exists, mock_parse, mock_retrieve):
         mock_exists.return_value = True

@@ -1,6 +1,6 @@
 import time
 import numpy as np
-from auralab.sethares import sethares
+from neuralab.sethares import sethares
 
 freq = 500 * np.arange(1, 7)
 amp = 0.88 ** np.arange(6)

@@ -1,6 +1,6 @@
 import torch
-from auralab.ema import ema
-from auralab.emstats import emstats
+from neuralab.ema import ema
+from neuralab.emstats import emstats
 
 
 def verify_lookahead():

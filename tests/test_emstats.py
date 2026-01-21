@@ -1,6 +1,6 @@
 import unittest
 import torch
-from auralab.emstats import emstats
+from neuralab.emstats import emstats
 
 
 class TestEMStats(unittest.TestCase):

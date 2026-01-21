@@ -8,8 +8,8 @@ import logging
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
-from auralab.fintech.binance import BinanceFetcher
-from auralab.fintech.sampling import sample_trades
+from neuralab.fintech.binance import BinanceFetcher
+from neuralab.fintech.sampling import sample_trades
 
 logging.basicConfig(level=logging.INFO)
 

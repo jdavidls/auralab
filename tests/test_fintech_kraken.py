@@ -10,8 +10,8 @@ import io
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
-from auralab.fintech.sources.kraken import KrakenFetcher
-from auralab.fintech.sources.core import TradeData, TradingPair, Market
+from neuralab.fintech.sources.kraken import KrakenFetcher
+from neuralab.fintech.sources.core import TradeData, TradingPair, Market
 
 
 class TestKrakenFetcher(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestKrakenFetcher(unittest.TestCase):
             cache_dir="/tmp/test_cache_kraken", rate_limit_delay=0.0
         )
 
-    @patch("auralab.fintech.sources.kraken.urllib.request.urlopen")
+    @patch("neuralab.fintech.sources.kraken.urllib.request.urlopen")
     @patch("pathlib.Path.exists")
     @patch("pathlib.Path.mkdir")
     @patch("torch.save")

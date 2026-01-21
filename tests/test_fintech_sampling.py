@@ -7,8 +7,8 @@ import sys
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
-from auralab.fintech.sources.core import TradeData
-from auralab.fintech.sampling import sample_trades
+from neuralab.fintech.sources.core import TradeData
+from neuralab.fintech.sampling import sample_trades
 
 
 class TestSampling(unittest.TestCase):

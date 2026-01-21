@@ -122,6 +122,18 @@ mad = ["pymad[mad] (>=0.11.3,<0.12.0)"]
 test = ["pytest (>=8.4.2)", "pytest-cov (>=7.0.0)"]
 
 [[package]]
+name = "blinker"
+version = "1.9.0"
+description = "Fast, simple object-to-object and broadcast signaling"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "blinker-1.9.0-py3-none-any.whl", hash = "sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc"},
+    {file = "blinker-1.9.0.tar.gz", hash = "sha256:b4ce2265a7abece45e7cc896e98dbebe6cead56bcf805a3d23136d145f5445bf"},
+]
+
+[[package]]
 name = "certifi"
 version = "2025.11.12"
 description = "Python package for providing Mozilla's CA Bundle."
@@ -355,17 +367,32 @@ files = [
 ]
 
 [[package]]
+name = "click"
+version = "8.3.1"
+description = "Composable command line interface toolkit"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "click-8.3.1-py3-none-any.whl", hash = "sha256:981153a64e25f12d547d3426c367a4857371575ee7ad18df2a6183ab0545b2a6"},
+    {file = "click-8.3.1.tar.gz", hash = "sha256:12ff4785d337a1bb490bb7e9c2b1ee5da3112e94a8622f26a6c77f5d2fc6842a"},
+]
+
+[package.dependencies]
+colorama = {version = "*", markers = "platform_system == \"Windows\""}
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 description = "Cross-platform colored terminal text."
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
-groups = ["dev"]
-markers = "sys_platform == \"win32\""
+groups = ["main", "dev"]
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
 ]
+markers = {main = "platform_system == \"Windows\"", dev = "sys_platform == \"win32\""}
 
 [[package]]
 name = "comm"
@@ -491,6 +518,76 @@ docs = ["ipython", "matplotlib", "numpydoc", "sphinx"]
 tests = ["pytest", "pytest-cov", "pytest-xdist"]
 
 [[package]]
+name = "dash"
+version = "2.18.2"
+description = "A Python framework for building reactive web-apps. Developed by Plotly."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "dash-2.18.2-py3-none-any.whl", hash = "sha256:0ce0479d1bc958e934630e2de7023b8a4558f23ce1f9f5a4b34b65eb3903a869"},
+    {file = "dash-2.18.2.tar.gz", hash = "sha256:20e8404f73d0fe88ce2eae33c25bbc513cbe52f30d23a401fa5f24dbb44296c8"},
+]
+
+[package.dependencies]
+dash-core-components = "2.0.0"
+dash-html-components = "2.0.0"
+dash-table = "5.0.0"
+Flask = ">=1.0.4,<3.1"
+importlib-metadata = "*"
+nest-asyncio = "*"
+plotly = ">=5.0.0"
+requests = "*"
+retrying = "*"
+setuptools = "*"
+typing-extensions = ">=4.1.1"
+Werkzeug = "<3.1"
+
+[package.extras]
+celery = ["celery[redis] (>=5.1.2)", "redis (>=3.5.3)"]
+ci = ["black (==22.3.0)", "dash-dangerously-set-inner-html", "dash-flow-example (==0.0.5)", "flake8 (==7.0.0)", "flaky (==3.8.1)", "flask-talisman (==1.0.0)", "jupyterlab (<4.0.0)", "mimesis (<=11.1.0)", "mock (==4.0.3)", "numpy (<=1.26.3)", "openpyxl", "orjson (==3.10.3)", "pandas (>=1.4.0)", "pyarrow", "pylint (==3.0.3)", "pytest-mock", "pytest-rerunfailures", "pytest-sugar (==0.9.6)", "pyzmq (==25.1.2)", "xlrd (>=2.0.1)"]
+compress = ["flask-compress"]
+dev = ["PyYAML (>=5.4.1)", "coloredlogs (>=15.0.1)", "fire (>=0.4.0)"]
+diskcache = ["diskcache (>=5.2.1)", "multiprocess (>=0.70.12)", "psutil (>=5.8.0)"]
+testing = ["beautifulsoup4 (>=4.8.2)", "cryptography", "dash-testing-stub (>=0.0.2)", "lxml (>=4.6.2)", "multiprocess (>=0.70.12)", "percy (>=2.0.2)", "psutil (>=5.8.0)", "pytest (>=6.0.2)", "requests[security] (>=2.21.0)", "selenium (>=3.141.0,<=4.2.0)", "waitress (>=1.4.4)"]
+
+[[package]]
+name = "dash-core-components"
+version = "2.0.0"
+description = "Core component suite for Dash"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "dash_core_components-2.0.0-py3-none-any.whl", hash = "sha256:52b8e8cce13b18d0802ee3acbc5e888cb1248a04968f962d63d070400af2e346"},
+    {file = "dash_core_components-2.0.0.tar.gz", hash = "sha256:c6733874af975e552f95a1398a16c2ee7df14ce43fa60bb3718a3c6e0b63ffee"},
+]
+
+[[package]]
+name = "dash-html-components"
+version = "2.0.0"
+description = "Vanilla HTML components for Dash"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "dash_html_components-2.0.0-py3-none-any.whl", hash = "sha256:b42cc903713c9706af03b3f2548bda4be7307a7cf89b7d6eae3da872717d1b63"},
+    {file = "dash_html_components-2.0.0.tar.gz", hash = "sha256:8703a601080f02619a6390998e0b3da4a5daabe97a1fd7a9cebc09d015f26e50"},
+]
+
+[[package]]
+name = "dash-table"
+version = "5.0.0"
+description = "Dash table"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "dash_table-5.0.0-py3-none-any.whl", hash = "sha256:19036fa352bb1c11baf38068ec62d172f0515f73ca3276c79dee49b95ddc16c9"},
+    {file = "dash_table-5.0.0.tar.gz", hash = "sha256:18624d693d4c8ef2ddec99a6f167593437a7ea0bf153aa20f318c170c5bc7308"},
+]
+
+[[package]]
 name = "debugpy"
 version = "1.8.17"
 description = "An implementation of the Debug Adapter Protocol for Python"
@@ -583,6 +680,29 @@ files = [
     {file = "filelock-3.20.0-py3-none-any.whl", hash = "sha256:339b4732ffda5cd79b13f4e2711a31b0365ce445d95d243bb996273d072546a2"},
     {file = "filelock-3.20.0.tar.gz", hash = "sha256:711e943b4ec6be42e1d4e6690b48dc175c822967466bb31c0c293f34334c13f4"},
 ]
+
+[[package]]
+name = "flask"
+version = "3.0.3"
+description = "A simple framework for building complex web applications."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "flask-3.0.3-py3-none-any.whl", hash = "sha256:34e815dfaa43340d1d15a5c3a02b8476004037eb4840b34910c6e21679d288f3"},
+    {file = "flask-3.0.3.tar.gz", hash = "sha256:ceb27b0af3823ea2737928a4d99d125a06175b8512c445cbd9a9ce200ef76842"},
+]
+
+[package.dependencies]
+blinker = ">=1.6.2"
+click = ">=8.1.3"
+itsdangerous = ">=2.1.2"
+Jinja2 = ">=3.1.2"
+Werkzeug = ">=3.0.0"
+
+[package.extras]
+async = ["asgiref (>=3.2)"]
+dotenv = ["python-dotenv"]
 
 [[package]]
 name = "fonttools"
@@ -721,6 +841,30 @@ files = [
 all = ["flake8 (>=7.1.1)", "mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
 
 [[package]]
+name = "importlib-metadata"
+version = "8.7.0"
+description = "Read metadata from Python packages"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "importlib_metadata-8.7.0-py3-none-any.whl", hash = "sha256:e5dd1551894c77868a30651cef00984d50e1002d06942a7101d34870c5f02afd"},
+    {file = "importlib_metadata-8.7.0.tar.gz", hash = "sha256:d13b81ad223b890aa16c5471f2ac3056cf76c5f10f82d6f9292f0b415f389000"},
+]
+
+[package.dependencies]
+zipp = ">=3.20"
+
+[package.extras]
+check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1) ; sys_platform != \"cygwin\""]
+cover = ["pytest-cov"]
+doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
+enabler = ["pytest-enabler (>=2.2)"]
+perf = ["ipython"]
+test = ["flufl.flake8", "importlib_resources (>=1.3) ; python_version < \"3.9\"", "jaraco.test (>=5.4)", "packaging", "pyfakefs", "pytest (>=6,!=8.1.*)", "pytest-perf (>=0.9.2)"]
+type = ["pytest-mypy"]
+
+[[package]]
 name = "ipykernel"
 version = "7.1.0"
 description = "IPython Kernel for Jupyter"
@@ -845,6 +989,18 @@ widgetsnbextension = ">=4.0.14,<4.1.0"
 
 [package.extras]
 test = ["ipykernel", "jsonschema", "pytest (>=3.6.0)", "pytest-cov", "pytz"]
+
+[[package]]
+name = "itsdangerous"
+version = "2.2.0"
+description = "Safely pass data to untrusted environments and back."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "itsdangerous-2.2.0-py3-none-any.whl", hash = "sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef"},
+    {file = "itsdangerous-2.2.0.tar.gz", hash = "sha256:e0050c0b7da1eea53ffaf149c0cfbb5c6e2e2b69c4bef22c81fa6eb73e5f6173"},
+]
 
 [[package]]
 name = "jedi"
@@ -1476,7 +1632,7 @@ version = "2.12.0"
 description = "Extremely lightweight compatibility layer between dataframe libraries"
 optional = false
 python-versions = ">=3.9"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "narwhals-2.12.0-py3-none-any.whl", hash = "sha256:baeba5d448a30b04c299a696bd9ee5ff73e4742143e06c49ca316b46539a7cbb"},
     {file = "narwhals-2.12.0.tar.gz", hash = "sha256:075b6d56f3a222613793e025744b129439ecdff9292ea6615dd983af7ba6ea44"},
@@ -1523,7 +1679,7 @@ version = "1.6.0"
 description = "Patch asyncio to allow nested event loops"
 optional = false
 python-versions = ">=3.5"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "nest_asyncio-1.6.0-py3-none-any.whl", hash = "sha256:87af6efd6b5e897c81050477ef65c62e2b2f35d51703cae01aff2905b1852e1c"},
     {file = "nest_asyncio-1.6.0.tar.gz", hash = "sha256:6f172d5449aca15afd6c646851f4e31e02c598d553a667e38cafa997cfec55fe"},
@@ -2088,7 +2244,7 @@ version = "6.5.0"
 description = "An open-source interactive data visualization library for Python"
 optional = false
 python-versions = ">=3.8"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "plotly-6.5.0-py3-none-any.whl", hash = "sha256:5ac851e100367735250206788a2b1325412aa4a4917a4fe3e6f0bc5aa6f3d90a"},
     {file = "plotly-6.5.0.tar.gz", hash = "sha256:d5d38224883fd38c1409bef7d6a8dc32b74348d39313f3c52ca998b8e447f5c8"},
@@ -2404,6 +2560,18 @@ urllib3 = ">=1.21.1,<3"
 [package.extras]
 socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
+
+[[package]]
+name = "retrying"
+version = "1.4.2"
+description = "Retrying"
+optional = false
+python-versions = ">=3.6"
+groups = ["main"]
+files = [
+    {file = "retrying-1.4.2-py3-none-any.whl", hash = "sha256:bbc004aeb542a74f3569aeddf42a2516efefcdaff90df0eb38fbfbf19f179f59"},
+    {file = "retrying-1.4.2.tar.gz", hash = "sha256:d102e75d53d8d30b88562d45361d6c6c934da06fab31bd81c0420acb97a8ba39"},
+]
 
 [[package]]
 name = "rpds-py"
@@ -2945,6 +3113,28 @@ files = [
 ]
 
 [[package]]
+name = "tqdm"
+version = "4.67.1"
+description = "Fast, Extensible Progress Meter"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "tqdm-4.67.1-py3-none-any.whl", hash = "sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2"},
+    {file = "tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2"},
+]
+
+[package.dependencies]
+colorama = {version = "*", markers = "platform_system == \"Windows\""}
+
+[package.extras]
+dev = ["nbval", "pytest (>=6)", "pytest-asyncio (>=0.24)", "pytest-cov", "pytest-timeout"]
+discord = ["requests"]
+notebook = ["ipywidgets (>=6)"]
+slack = ["slack-sdk"]
+telegram = ["requests"]
+
+[[package]]
 name = "traitlets"
 version = "5.14.3"
 description = "Traitlets Python configuration system"
@@ -3033,6 +3223,24 @@ files = [
 ]
 
 [[package]]
+name = "werkzeug"
+version = "3.0.6"
+description = "The comprehensive WSGI web application library."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "werkzeug-3.0.6-py3-none-any.whl", hash = "sha256:1bc0c2310d2fbb07b1dd1105eba2f7af72f322e1e455f2f93c993bee8c8a5f17"},
+    {file = "werkzeug-3.0.6.tar.gz", hash = "sha256:a8dd59d4de28ca70471a34cba79bed5f7ef2e036a76b3ab0835474246eb41f8d"},
+]
+
+[package.dependencies]
+MarkupSafe = ">=2.1.1"
+
+[package.extras]
+watchdog = ["watchdog (>=2.3)"]
+
+[[package]]
 name = "widgetsnbextension"
 version = "4.0.15"
 description = "Jupyter interactive widgets for Jupyter Notebook"
@@ -3044,7 +3252,27 @@ files = [
     {file = "widgetsnbextension-4.0.15.tar.gz", hash = "sha256:de8610639996f1567952d763a5a41af8af37f2575a41f9852a38f947eb82a3b9"},
 ]
 
+[[package]]
+name = "zipp"
+version = "3.23.0"
+description = "Backport of pathlib-compatible object wrapper for zip files"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "zipp-3.23.0-py3-none-any.whl", hash = "sha256:071652d6115ed432f5ce1d34c336c0adfd6a884660d1e9712a256d3d3bd4b14e"},
+    {file = "zipp-3.23.0.tar.gz", hash = "sha256:a07157588a12518c9d4034df3fbbee09c814741a33ff63c05fa29d26a2404166"},
+]
+
+[package.extras]
+check = ["pytest-checkdocs (>=2.4)", "pytest-ruff (>=0.2.1) ; sys_platform != \"cygwin\""]
+cover = ["pytest-cov"]
+doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
+enabler = ["pytest-enabler (>=2.2)"]
+test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_itertools", "pytest (>=6,!=8.1.*)", "pytest-ignore-flaky"]
+type = ["pytest-mypy"]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.13,<3.15"
-content-hash = "e058eb00354753d4b29aebc489b5fc269686af507c2dea7162fcb1d045555ad7"
+content-hash = "180682f5ad3b402f58acc62fc7be945b87995c5b88fb728f6adee9183df4b607"

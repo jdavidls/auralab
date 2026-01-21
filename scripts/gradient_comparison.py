@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from datetime import timedelta
-from auralab.portfolio import portfolio, signed_softmax
+from neuralab.portfolio import portfolio, signed_softmax
 
 
 def run_comparison():

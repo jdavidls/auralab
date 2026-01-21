@@ -8,13 +8,13 @@ import sys
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
-from auralab.fintech.dataset import FintechDataset, SamplingDataset, TradingDataset
-from auralab.fintech.sources.core import TradeData, SampledData, TradingPair, Market
+from neuralab.fintech.dataset import FintechDataset, SamplingDataset, TradingDataset
+from neuralab.fintech.sources.core import TradeData, SampledData, TradingPair, Market
 
 
 class TestHierarchicalDataset(unittest.TestCase):
 
-    @patch("auralab.fintech.dataset.TradingDataset.ensure")
+    @patch("neuralab.fintech.dataset.TradingDataset.ensure")
     def test_sampling_dataset(self, mock_ensure):
         # Mock raw trade data
         # 2023-01-01 00:00:00 UTC = 1672531200000 ms
@@ -37,8 +37,8 @@ class TestHierarchicalDataset(unittest.TestCase):
         )
 
         # Ensure (triggers sampling)
-        with patch("auralab.fintech.dataset.torch.save") as mock_save:
-            with patch("auralab.fintech.dataset.torch.load") as mock_load:
+        with patch("neuralab.fintech.dataset.torch.save") as mock_save:
+            with patch("neuralab.fintech.dataset.torch.load") as mock_load:
                 with patch("pathlib.Path.exists") as mock_exists:
                     mock_exists.return_value = False  # Force compute
 
@@ -47,7 +47,7 @@ class TestHierarchicalDataset(unittest.TestCase):
                     self.assertIsInstance(sampled, SampledData)
                     mock_save.assert_called()
 
-    @patch("auralab.fintech.dataset.SamplingDataset.ensure")
+    @patch("neuralab.fintech.dataset.SamplingDataset.ensure")
     def test_fintech_dataset(self, mock_ensure):
         # Mock sampled data (T=10)
         T = 10

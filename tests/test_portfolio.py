@@ -1,6 +1,6 @@
 import unittest
 import torch
-from auralab.portfolio import PortfolioStats
+from neuralab.portfolio import PortfolioStats
 
 
 class TestPortfolioStats(unittest.TestCase):

@@ -4,7 +4,7 @@ import time
 import matplotlib.pyplot as plt
 import os
 from typing import Optional
-from auralab.ema import ema
+from neuralab.ema import ema
 
 
 def benchmark():

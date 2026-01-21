@@ -8,7 +8,7 @@ import logging
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
-from auralab.fintech.kraken import KrakenFetcher
+from neuralab.fintech.kraken import KrakenFetcher
 
 logging.basicConfig(level=logging.INFO)
 

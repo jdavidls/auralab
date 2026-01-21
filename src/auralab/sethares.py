@@ -83,6 +83,9 @@ def sethares(
 if __name__ == "__main__":
     from numpy import array, linspace, empty, concatenate
     import matplotlib.pyplot as plt
+    from librosa import cqt_frequencies, note_to_hz
+
+    # freqs = cqt_frequencies(88, fmin=note_to_hz("A0"))
 
     """
     Reproduce Sethares Figure 3

@@ -7,7 +7,7 @@ import logging
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent / "src"))
 
-from auralab.fintech.dataset import FintechDataset
+from neuralab.fintech.dataset import FintechDataset
 
 logging.basicConfig(level=logging.INFO)
 

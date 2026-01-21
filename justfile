@@ -3,3 +3,6 @@ test:
 
 bench:
     poetry run python benches/benchmark_ema.py
+
+nb *name:
+    poetry run python notebooks/{{name}}.py

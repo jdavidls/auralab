@@ -1,6 +1,6 @@
 import unittest
 import torch
-from auralab.ema import ema
+from neuralab.ema import ema
 
 
 class TestEMA(unittest.TestCase):
